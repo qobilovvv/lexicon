@@ -1,49 +1,58 @@
-# Lexicon
+# Lexicon — Go + HTMX
 
-Lexicon is a personal vocabulary notebook. Create folders and save words or phrases with optional meanings, translations, or examples. Search matches titles and descriptions across your own folders. Word details combine the title and description into one document, with a reading/editing toggle and Markdown headings.
+The `master` branch of Lexicon uses Go `html/template` and HTMX 2.0.11. The existing Go backend serves both the website and JSON API; React and Vite are not used. The React version remains on the other branches.
 
-## Local development
+## Run
 
-Use Node.js 20.19+ or 22.12+ and **Go 1.24+**. The Go API uses the standard-library PBKDF2 implementation introduced in Go 1.24.
-
-In one terminal:
+Requires Go 1.24 or newer. From this repository:
 
 ```sh
 cd backend
 go run .
 ```
 
-In another:
+Open http://127.0.0.1:8080. To use another port:
 
 ```sh
-cd frontend
-npm ci
-npm run dev
+LEXICON_ADDR=127.0.0.1:8081 go run .
 ```
 
-Open the address printed by Vite. Vite forwards `/api` to the Go server on port 8080. Restart the Go server after updating from the version without accounts.
+There is no Node dependency, frontend build, CDN dependency, or separate frontend server. Templates, styles, JavaScript, and the vendored HTMX library are embedded into the Go binary:
 
-## Accounts and existing words
+```sh
+cd backend
+go build -o lexicon .
+./lexicon
+```
 
-Create an account with a full name, unique username, email, and password. Sign in with either your email or username. Passwords require 12–128 characters. The profile at the bottom of the sidebar lets you edit your details, add an optional bio (up to 160 characters), upload/remove an avatar, or sign out. Changing an email requires the current password. Avatar uploads accept JPEG/PNG up to 5 MB; the frontend crops and resizes them to 256 × 256 pixels before saving.
+## Features
 
-**The first account created owns the existing library.** Its folders and words remain in the original data file; they are not copied to other accounts. Later accounts start with an empty library. On a fresh installation the initial sample library belongs to the first account. Document drafts are scoped to the signed-in account; legacy tab drafts follow the first imported library.
+- Register, sign in with email or username, sign out, and edit your profile.
+- Create folders; create, read, edit, move, and delete words.
+- Search titles and descriptions across folders and sort by date or alphabetically.
+- Read documents with safe Markdown headings, paragraphs, and fenced code blocks.
+- Read news; the first account can create, edit, and delete posts.
+- Upload, center-crop, and resize JPEG/PNG avatars on the server.
+- Responsive navigation, inline form errors, and preserved fields after validation failures.
 
-Email verification, password reset, and password changes are not implemented. Accounts work against this API instance; hosting/synchronizing the same API and its data is required for access from other devices.
+HTMX boosts navigation and forms; live search swaps the results region. Pages are rendered by Go. All core flows also work with regular links and forms when JavaScript is disabled; search then requires submitting the form. Small vanilla JavaScript listeners handle mobile navigation and connection feedback.
 
-## Persistence and deployment
+The JSON API remains available at `/api/*`. HTML form actions translate fields into requests dispatched in-process to the original API handlers, preserving account isolation, validation, origin checks, rate limiting, password hashing, and session cookies. HTML is escaped by Go templates; the document renderer emits only fixed tags with escaped text. HTMX history snapshots are disabled for account pages.
 
-The default base file is `backend/data/lexicon.json`. Set `LEXICON_DATA_FILE` to choose another path. Keep these files together when backing up or moving the app:
+## Data and existing accounts
 
-- The base file: the first account's existing vocabulary.
-- `<base file>.accounts.json`: profiles, password hashes, and session records.
-- `<base file>.workspaces/`: separate vocabulary files for subsequent accounts.
+Private data and accounts are **not committed** to this branch. By default this version creates an independent `backend/data/lexicon.json`. The first account owns the initial sample library and news; subsequent accounts start empty.
 
-New files are written with owner-only permissions. Passwords are salted and hashed using PBKDF2-HMAC-SHA-256 with 600,000 iterations; random session tokens are stored as hashes. Session cookies are HttpOnly and SameSite=Lax, last up to 30 days, and are invalidated on sign-out. Authentication attempts are rate limited. Mutating API requests require JSON and reject cross-origin requests. See [Go's PBKDF2 documentation](https://pkg.go.dev/crypto/pbkdf2) and [OWASP password-storage guidance](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html).
+To migrate an existing installation, stop its server and copy the complete data set to this version's `backend/data/`, preserving names:
 
-Serve the frontend and API from the same origin over HTTPS in production, preserve the original Host header in a reverse proxy, and set `LEXICON_COOKIE_SECURE=true` when TLS terminates at the proxy. Keep account/data files outside public web directories.
+- `lexicon.json`
+- `lexicon.json.accounts.json`
+- `lexicon.json.workspaces/`
+- `lexicon.json.news.json`, if present
 
-`LEXICON_ADDR` changes the API bind address (default `127.0.0.1:8080`). `LEXICON_API_TARGET` changes Vite's development proxy target; normally neither is needed.
+Alternatively, set `LEXICON_DATA_FILE` to the base file's absolute path. Do not run both servers against the same data set: storage uses in-process locking. Data and secrets are ignored by Git. Keep data outside public web directories.
+
+For deployment, run this Go service on a host supporting Go binaries or containers and HTTPS. Preserve the Host header through your reverse proxy and set `LEXICON_COOKIE_SECURE=true` when TLS terminates there. Sites' static/Worker hosting cannot run this Go service. Password reset, email verification, and password changes remain outside the existing backend's features.
 
 ## Checks
 
@@ -53,10 +62,13 @@ go test -race ./...
 go vet ./...
 ```
 
-```sh
-cd frontend
-node --test tests/document-format.test.js
-npm run build
-```
+The copied backend account tests remain, with additional tests exercising HTML authentication, forms, search, escaping, isolation, origin checks, owner permissions, profile updates, avatar resizing, and session expiry. Tests use temporary data directories.
 
-The phone layout has larger touch targets, 16px inputs, a full-width search row, a sticky word-detail toolbar, and modal footers that remain reachable while fields scroll. Modal and chooser positioning responds to the visible viewport and safe-area insets. Browser checks simulate reduced keyboard viewports; physical iOS/Android testing is still useful.
+## Layout
+
+- `backend/main.go`, `accounts.go`, `news.go`: copied Go backend; main now serves the website and API.
+- `backend/website.go`: HTML routes, view models, form adapter, safe document rendering, image resizing.
+- `backend/web/templates/`: server-rendered pages.
+- `backend/web/static/`: original styles with HTMX layout additions, small UI script, and vendored HTMX with its license.
+
+HTMX documentation: https://htmx.org/docs/

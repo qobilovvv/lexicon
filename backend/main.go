@@ -214,7 +214,7 @@ func main() {
 	if address == "" {
 		address = "127.0.0.1:8080"
 	}
-	server := &http.Server{Addr: address, Handler: app.routes(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second}
-	log.Printf("Lexicon API listening on %s", server.Addr)
+	server := &http.Server{Addr: address, Handler: app.website(), ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 15 * time.Second}
+	log.Printf("Lexicon listening on %s", server.Addr)
 	log.Fatal(server.ListenAndServe())
 }
